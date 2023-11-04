@@ -9,7 +9,23 @@ pub fn Client(cx: Scope) -> Element {
 }
 
 pub fn Validator(cx: Scope) -> Element {
-    render! {"Validator log"}
+    render! { (0..1000).map(|i| rsx!(li { "{i}" })) }
+    /*
+    let validator_log = use_future(cx, (), |_| run_test_validator());
+    match validator_log.value() {
+        Some(Ok(list)) => render! {
+            for line in list {
+                render! { "{line}" }
+            }
+        },
+        Some(Err(e)) => render! {
+            "Failed to start validator {e}"
+        },
+        None => render! {
+            "Starting validator"
+        },
+    }
+    */
 }
 
 pub fn Commands(cx: Scope) -> Element {
@@ -41,20 +57,23 @@ pub fn run_client_with_options() {
     println!("cargo r -p client -- -C config.yml -k program/target/deploy/storage-keypair.json -u localhost create 255 255 0");
 }
 
-pub async fn run_test_validator() -> std::io::Result<()> {
-    println!("solana-test-validator -C config.yml -l test-ledger");
+pub async fn run_test_validator() -> std::io::Result<Vec<String>, > {
+    //println!("solana-test-validator -C config.yml -l test-ledger");
     let mut child = Command::new("solana-test-validator")
         .arg("-C").arg("config.yml")
         .arg("-l").arg("test-ledger")
+        .arg("-q")
         .stdout(Stdio::piped())
         .spawn()?;
 
     let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
 
-    child.kill()?;
+    //child.kill()?;
+
+    let mut collected_log: Vec<String> = vec![];
 
     while let Some(line) = lines.next().await {
-        println!("{}", line?);
+        collected_log.push(format!("{}", line?));
     }
-    Ok(())
+    Ok(collected_log)
 }

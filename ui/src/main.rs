@@ -46,6 +46,8 @@ fn App(cx: Scope) -> Element {
                     ui::Client {}
                 }
                 div {
+                    display: "flex",
+                    flex_direction: "column",
                     width: "50%",
                     ui::Validator {}
                 }
