@@ -9,27 +9,34 @@ pub fn Client(cx: Scope) -> Element {
 }
 
 pub fn Validator(cx: Scope) -> Element {
-    render! { (0..1000).map(|i| rsx!(li { "{i}" })) }
-    /*
-    let validator_log = use_future(cx, (), |_| run_test_validator());
-    match validator_log.value() {
-        Some(Ok(list)) => render! {
-            for line in list {
-                render! { "{line}" }
+    let validator_log_line = use_state(cx, || String::new());
+    let _vlc: &Coroutine<()> = use_coroutine(cx, |_rx| {
+        let validator_log_line = validator_log_line.to_owned();
+        async move {
+            if let Ok(mut child) = Command::new("solana-test-validator")
+                .env("RUST_LOG", "info,solana_accounts_db=warn,solana_core=warn,solana_metrics=warn,solana_poh=warn,solana_runtime::bank=warn")
+                .arg("-C").arg("config.yml")
+                .arg("-l").arg("test-ledger")
+                .stdout(Stdio::piped())
+                .spawn()
+            {
+                let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+                while let Some(line) = lines.next().await {
+                    validator_log_line.set(format!("{}", line.unwrap()));
+                }
+            } else {
+
+                //child.kill()?;
+
             }
-        },
-        Some(Err(e)) => render! {
-            "Failed to start validator {e}"
-        },
-        None => render! {
-            "Starting validator"
-        },
-    }
-    */
+        }
+    });
+    render! { format!("{}\n", validator_log_line.get()) }
 }
 
 pub fn Commands(cx: Scope) -> Element {
     render! {"Commands"}
+    //render! { (0..1000).map(|i| rsx!(li { "{i}" })) }
 }
 
 pub async fn compile_smart_contract() -> std::io::Result<()> {
@@ -55,25 +62,4 @@ pub fn deploy_smart_contract() {
 
 pub fn run_client_with_options() {
     println!("cargo r -p client -- -C config.yml -k program/target/deploy/storage-keypair.json -u localhost create 255 255 0");
-}
-
-pub async fn run_test_validator() -> std::io::Result<Vec<String>, > {
-    //println!("solana-test-validator -C config.yml -l test-ledger");
-    let mut child = Command::new("solana-test-validator")
-        .arg("-C").arg("config.yml")
-        .arg("-l").arg("test-ledger")
-        .arg("-q")
-        .stdout(Stdio::piped())
-        .spawn()?;
-
-    let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
-
-    //child.kill()?;
-
-    let mut collected_log: Vec<String> = vec![];
-
-    while let Some(line) = lines.next().await {
-        collected_log.push(format!("{}", line?));
-    }
-    Ok(collected_log)
 }

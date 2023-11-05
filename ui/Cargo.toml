@@ -8,6 +8,7 @@ edition = { workspace = true }
 [dependencies]
 async-process = { workspace = true }
 async-recursion = { workspace = true }
+async-std = { workspace = true }
 chrono = { workspace = true }
 dioxus = { workspace = true }
 dioxus-tui = { workspace = true }
