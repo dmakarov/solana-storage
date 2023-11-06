@@ -5,7 +5,13 @@ use dioxus::prelude::*;
 use futures::{io::BufReader, prelude::*};
 
 pub fn Client(cx: Scope) -> Element {
-    render! {"Client application"}
+    render! {
+        div {
+            height: "2px",
+            justify_content: "center",
+            "Client application"
+        }
+    }
 }
 
 pub fn Validator(cx: Scope) -> Element {
@@ -31,35 +37,84 @@ pub fn Validator(cx: Scope) -> Element {
             }
         }
     });
-    render! { format!("{}\n", validator_log_line.get()) }
+    render! {
+        div {
+            height: "2px",
+            justify_content: "center",
+            "Validator output"
+        }
+        div {
+            height: "2px",
+            format!("{}\n", validator_log_line.get())
+        }
+        div {
+            display: "flex",
+            flex_direction: "column",
+            div { "1" }
+            div { "2" }
+            div { "3" }
+            div { "4" }
+            div { "5" }
+        }
+    }
 }
 
 pub fn Commands(cx: Scope) -> Element {
     render! {"Commands"}
-    //render! { (0..1000).map(|i| rsx!(li { "{i}" })) }
 }
 
 pub async fn compile_smart_contract() -> std::io::Result<()> {
-    println!("RUST_LOG=info cargo build-sbf --manifest-path=program/Cargo.toml");
-    let mut child = Command::new("cargo")
+    if let Ok(mut child) = Command::new("cargo")
         .env("RUST_LOG", "info")
         .arg("build-sbf")
         .arg("--manifest-path=program/Cargo.toml")
         .stdout(Stdio::piped())
-        .spawn()?;
-
-    let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
-
-    while let Some(line) = lines.next().await {
-        println!("{}", line?);
+        .spawn()
+    {
+        let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+        while let Some(line) = lines.next().await {
+            println!("{}", line?);
+        }
+    } else {
     }
     Ok(())
 }
 
-pub fn deploy_smart_contract() {
-    println!("solana program deploy --use-quic -k test.json -u localhost program/target/deploy/storage.so");
+pub async fn deploy_smart_contract() -> std::io::Result<()> {
+    if let Ok(mut child) = Command::new("solana")
+        .arg("program")
+        .arg("deploy")
+        .arg("--use-quic")
+        .arg("-k").arg("test.json")
+        .arg("-u").arg("localhost")
+        .arg("program/target/deploy/storage.so")
+        .stdout(Stdio::piped())
+        .spawn()
+    {
+        let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+        while let Some(line) = lines.next().await {
+            println!("{}", line?);
+        }
+    } else {
+    }
+    Ok(())
 }
 
-pub fn run_client_with_options() {
-    println!("cargo r -p client -- -C config.yml -k program/target/deploy/storage-keypair.json -u localhost create 255 255 0");
+pub async fn run_client_with_options() -> std::io::Result<()> {
+    if let Ok(mut child) = Command::new("cargo")
+        .arg("r").arg("-p").arg("client")
+        .arg("--").arg("-C").arg("config.yml")
+        .arg("-k").arg("program/target/deploy/storage-keypair.json")
+        .arg("-u").arg("localhost")
+        .arg("create").arg("255").arg("255").arg("0")
+        .stdout(Stdio::piped())
+        .spawn()
+    {
+        let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+        while let Some(line) = lines.next().await {
+            println!("{}", line?);
+        }
+    } else {
+    }
+    Ok(())
 }

@@ -36,12 +36,13 @@ fn App(cx: Scope) -> Element {
             onkeydown: move |k: KeyboardEvent| if let KeyCode::Q = k.key_code {
                 tui_ctx.quit();
             },
-
             div {
                 display: "flex",
                 flex_direction: "row",
                 height: "80%",
                 div {
+                    display: "flex",
+                    flex_direction: "column",
                     width: "50%",
                     ui::Client {}
                 }
