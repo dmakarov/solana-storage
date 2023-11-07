@@ -5,12 +5,52 @@ use dioxus::prelude::*;
 use futures::{io::BufReader, prelude::*};
 
 pub fn Client(cx: Scope) -> Element {
-    render! {
-        div {
-            height: "2px",
-            justify_content: "center",
-            "Client application"
+    let output = use_ref(cx, Vec::<String>::new);
+    let future = use_future(cx, (), |_| {
+        let output = output.to_owned();
+        async move {
+            if let Ok(mut child) = Command::new("cargo")
+                //.env("RUST_LOG", "info")
+                .arg("build-sbf")
+                .arg("--manifest-path=program/Cargo.toml")
+                .stdout(Stdio::piped())
+                .spawn()
+            {
+                let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+                while let Some(line) = lines.next().await {
+                    output.with_mut(|v| v.push(format!("{}", line.unwrap())));
+                }
+            } else {
+            }
         }
+    });
+
+    let output_lock = output.read();
+    let output_rendered = output_lock.iter().map(|x| {
+        rsx!(format!("{}", x.clone()))
+    });
+
+    match future.value() {
+        Some(_) => render! {
+            div {
+                height: "2px",
+                justify_content: "center",
+                "Client application"
+            }
+            div {
+                output_rendered
+            }
+        },
+        None => render! {
+            div {
+                height: "2px",
+                justify_content: "center",
+                "Client application"
+            }
+            div {
+                "Compiling program..."
+            }
+        },
     }
 }
 
@@ -61,23 +101,6 @@ pub fn Validator(cx: Scope) -> Element {
 
 pub fn Commands(cx: Scope) -> Element {
     render! {"Commands"}
-}
-
-pub async fn compile_smart_contract() -> std::io::Result<()> {
-    if let Ok(mut child) = Command::new("cargo")
-        .env("RUST_LOG", "info")
-        .arg("build-sbf")
-        .arg("--manifest-path=program/Cargo.toml")
-        .stdout(Stdio::piped())
-        .spawn()
-    {
-        let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
-        while let Some(line) = lines.next().await {
-            println!("{}", line?);
-        }
-    } else {
-    }
-    Ok(())
 }
 
 pub async fn deploy_smart_contract() -> std::io::Result<()> {
