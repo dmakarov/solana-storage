@@ -5,33 +5,37 @@ use dioxus::prelude::*;
 use futures::{io::BufReader, prelude::*};
 
 pub fn Client(cx: Scope) -> Element {
-    let output = use_ref(cx, Vec::<String>::new);
+    let future_output = use_ref(cx, Vec::<String>::new);
+    let deploy_output = use_ref(cx, Vec::<String>::new);
     let future = use_future(cx, (), |_| {
-        let output = output.to_owned();
-        async move {
-            if let Ok(mut child) = Command::new("cargo")
-                //.env("RUST_LOG", "info")
-                .arg("build-sbf")
-                .arg("--manifest-path=program/Cargo.toml")
-                .arg("--").arg("-q")
-                .stderr(Stdio::piped())
-                .stdout(Stdio::piped())
-                .spawn()
-            {
-                let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
-                let mut error = BufReader::new(child.stderr.take().unwrap()).lines();
-                while let Some(line) = lines.next().await {
-                    output.with_mut(|v| v.push(format!("{}", line.unwrap())));
-                }
-                while let Some(line) = error.next().await {
-                    output.with_mut(|v| v.push(format!("{}", line.unwrap())));
-                }
-            } else {
-            }
-        }
+        let output = future_output.to_owned();
+        start_subcommand(
+            "cargo",
+            vec![],
+            &["build-sbf", "--manifest-path=program/Cargo.toml", "--", "-q"],
+            output,
+        )
+    });
+    let deploy = use_future(cx, (), |_| {
+        let output = deploy_output.to_owned();
+        start_subcommand(
+            "solana",
+            vec![],
+            &["program", "deploy", "--use-quic", "-k", "test.json", "-u", "localhost", "program/target/deploy/storage.so"],
+            output,
+        )
+    });
+    let client = use_future(cx, (), |_| {
+        let output = deploy_output.to_owned();
+        start_subcommand(
+            "cargo",
+            vec![],
+            &["r", "-p", "client", "--", "-C", "config.yml", "-k", "program/target/deploy/storage-keypair.json", "-u", "localhost", "create", "255", "255", "0"],
+            output,
+        )
     });
 
-    let output_lock = output.read();
+    let output_lock = future_output.read();
     let output_rendered = output_lock.iter().map(|x| {
         rsx!(format!("{}", x.clone()))
     });
@@ -110,41 +114,24 @@ pub fn Commands(cx: Scope) -> Element {
     render! {"Commands"}
 }
 
-pub async fn deploy_smart_contract() -> std::io::Result<()> {
-    if let Ok(mut child) = Command::new("solana")
-        .arg("program")
-        .arg("deploy")
-        .arg("--use-quic")
-        .arg("-k").arg("test.json")
-        .arg("-u").arg("localhost")
-        .arg("program/target/deploy/storage.so")
+async fn start_subcommand(command: &str, vars: Vec<(&str, &str)>, args: &[&str], output: UseRef<Vec<String>>) {
+    let output = output.to_owned();
+    if let Ok(mut child) = Command::new(command)
+        .envs(vars.clone())
+        .args(args)
+        .stderr(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
     {
         let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+        let mut error = BufReader::new(child.stderr.take().unwrap()).lines();
         while let Some(line) = lines.next().await {
-            println!("{}", line?);
+            output.with_mut(|v| v.push(format!("{}", line.unwrap())));
+        }
+        while let Some(line) = error.next().await {
+            output.with_mut(|v| v.push(format!("{}", line.unwrap())));
         }
     } else {
+        output.with_mut(|v| v.push(format!("Failed {:?} {} {:?}", &vars, command, args)));
     }
-    Ok(())
-}
-
-pub async fn run_client_with_options() -> std::io::Result<()> {
-    if let Ok(mut child) = Command::new("cargo")
-        .arg("r").arg("-p").arg("client")
-        .arg("--").arg("-C").arg("config.yml")
-        .arg("-k").arg("program/target/deploy/storage-keypair.json")
-        .arg("-u").arg("localhost")
-        .arg("create").arg("255").arg("255").arg("0")
-        .stdout(Stdio::piped())
-        .spawn()
-    {
-        let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
-        while let Some(line) = lines.next().await {
-            println!("{}", line?);
-        }
-    } else {
-    }
-    Ok(())
 }
