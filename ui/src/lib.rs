@@ -13,11 +13,17 @@ pub fn Client(cx: Scope) -> Element {
                 //.env("RUST_LOG", "info")
                 .arg("build-sbf")
                 .arg("--manifest-path=program/Cargo.toml")
+                .arg("--").arg("-q")
+                .stderr(Stdio::piped())
                 .stdout(Stdio::piped())
                 .spawn()
             {
                 let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+                let mut error = BufReader::new(child.stderr.take().unwrap()).lines();
                 while let Some(line) = lines.next().await {
+                    output.with_mut(|v| v.push(format!("{}", line.unwrap())));
+                }
+                while let Some(line) = error.next().await {
                     output.with_mut(|v| v.push(format!("{}", line.unwrap())));
                 }
             } else {
@@ -63,6 +69,7 @@ pub fn Validator(cx: Scope) -> Element {
                 .env("RUST_LOG", "info,solana_accounts_db=warn,solana_core=warn,solana_metrics=warn,solana_poh=warn,solana_runtime::bank=warn")
                 .arg("-C").arg("config.yml")
                 .arg("-l").arg("test-ledger")
+                .stderr(Stdio::piped())
                 .stdout(Stdio::piped())
                 .spawn()
             {
